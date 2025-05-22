@@ -3,13 +3,13 @@ package model;
 import util.DBConnection;
 import org.mindrot.jbcrypt.BCrypt;
 
-import java.sql.Connection;
-import java.sql.PreparedStatement;
-import java.sql.ResultSet;
-import java.sql.SQLException;
+import java.sql.*;
+import java.util.ArrayList;
+import java.util.List;
 
 public class UserDAO {
 
+    /** Validiert Login und liest das „must_change_password“-Flag aus */
     public static User validateLogin(String email, String password) {
         String query = "SELECT * FROM benutzer WHERE email = ?";
 
@@ -23,13 +23,15 @@ public class UserDAO {
                 String hashedPassword = rs.getString("passwort");
 
                 if (BCrypt.checkpw(password, hashedPassword)) {
-                    return new User(
+                    User u = new User(
                             rs.getInt("id"),
                             rs.getString("email"),
                             hashedPassword,
                             rs.getString("name"),
-                            rs.getString("rolle")
+                            rs.getString("rolle"),
+                            rs.getBoolean("must_change_password")
                     );
+                    return u;
                 }
             }
 
@@ -39,6 +41,8 @@ public class UserDAO {
 
         return null;
     }
+
+    /** Prüft, ob eine E-Mail bereits registriert ist */
     public static boolean emailExists(String email) {
         String query = "SELECT 1 FROM benutzer WHERE email = ?";
 
@@ -55,7 +59,7 @@ public class UserDAO {
         }
     }
 
-    //  NOVA metoda: Nađi email korisnika po user_id
+    /** Liefert die E-Mail zu einer Benutzer-ID */
     public String findEmailByBenutzerId(int userId) {
         String email = null;
         String query = "SELECT email FROM benutzer WHERE id = ?";
@@ -74,5 +78,111 @@ public class UserDAO {
             e.printStackTrace();
         }
         return email;
+    }
+
+    /** Holt alle User und das Password-Change-Flag */
+    public static List<User> getAllUsers() {
+        List<User> users = new ArrayList<>();
+        String query = "SELECT * FROM benutzer";
+
+        try (Connection conn = DBConnection.getConnection();
+             PreparedStatement stmt = conn.prepareStatement(query);
+             ResultSet rs = stmt.executeQuery()) {
+
+            while (rs.next()) {
+                User u = new User(
+                        rs.getInt("id"),
+                        rs.getString("email"),
+                        rs.getString("passwort"),
+                        rs.getString("name"),
+                        rs.getString("rolle"),
+                        rs.getBoolean("must_change_password")
+                );
+                users.add(u);
+            }
+
+        } catch (SQLException e) {
+            e.printStackTrace();
+        }
+
+        return users;
+    }
+    /** Aktualisiert Name und E-Mail eines Users */
+    public static boolean updateUserProfile(int userId, String newName, String newEmail) {
+        String sql = """
+        UPDATE benutzer
+           SET name = ?, email = ?
+         WHERE id = ?
+    """;
+        try (Connection c = DBConnection.getConnection();
+             PreparedStatement st = c.prepareStatement(sql)) {
+            st.setString(1, newName);
+            st.setString(2, newEmail);
+            st.setInt(3, userId);
+            return st.executeUpdate() == 1;
+        } catch (SQLException e) {
+            e.printStackTrace();
+            return false;
+        }
+    }
+
+    /** Legt einen neuen User mit Default-Passwort und Flag=true an */
+    public static boolean addUser(String name, String email, String role) {
+        String defaultHash = BCrypt.hashpw("default123", BCrypt.gensalt());
+        String sql = """
+        INSERT INTO benutzer(name, email, rolle, passwort, must_change_password)
+        VALUES (?, ?, ?, ?, TRUE)
+    """;
+
+        try (Connection conn = DBConnection.getConnection();
+             PreparedStatement st = conn.prepareStatement(sql)) {
+
+            st.setString(1, name);
+            st.setString(2, email);
+            st.setString(3, role);          // kein ::benutzer_rolle mehr
+            st.setString(4, defaultHash);
+            return st.executeUpdate() == 1;
+
+        } catch (SQLException e) {
+            e.printStackTrace();
+            return false;
+        }
+    }
+
+    /** Setzt neues Passwort und deaktiviert das Änderungs-Flag */
+    public static boolean updatePasswordAndClearFlag(int userId, String newHash) {
+        String sql = """
+            UPDATE benutzer
+               SET passwort = ?, must_change_password = FALSE
+             WHERE id = ?
+        """;
+
+        try (Connection c = DBConnection.getConnection();
+             PreparedStatement st = c.prepareStatement(sql)) {
+
+            st.setString(1, newHash);
+            st.setInt(2, userId);
+            return st.executeUpdate() == 1;
+
+        } catch (SQLException e) {
+            e.printStackTrace();
+            return false;
+        }
+    }
+
+    /** Löscht einen User anhand der E-Mail */
+    public static boolean deleteUserByEmail(String email) {
+        String query = "DELETE FROM benutzer WHERE email = ?";
+
+        try (Connection conn = DBConnection.getConnection();
+             PreparedStatement stmt = conn.prepareStatement(query)) {
+
+            stmt.setString(1, email);
+            return stmt.executeUpdate() > 0;
+
+        } catch (SQLException e) {
+            e.printStackTrace();
+            return false;
+        }
     }
 }

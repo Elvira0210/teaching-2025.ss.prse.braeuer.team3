@@ -13,32 +13,22 @@ import java.io.File;
 
 public class AddInvoiceController {
 
-    @FXML
-    private ImageView uploadIcon;
-
-    @FXML
-    private Button chooseFileButton;
-
-    @FXML
-    private Label fileLabel;
-
-    @FXML
-    private RadioButton restaurantRadio;
-
-    @FXML
-    private RadioButton supermarketRadio;
-
-    @FXML
-    private TextField amountField;
+    @FXML private ImageView uploadIcon;
+    @FXML private Button chooseFileButton;
+    @FXML private Label fileLabel;
+    @FXML private RadioButton restaurantRadio;
+    @FXML private RadioButton supermarketRadio;
+    @FXML private ToggleGroup categoryGroup;
+    @FXML private TextField invoiceAmountField;
+    @FXML private Label reimbursementAmountLabel;
 
     private File selectedFile;
 
     @FXML
-    private Button submitButton;
-
-    @FXML
     public void initialize() {
-        uploadIcon.setImage(new Image(getClass().getResourceAsStream("/images/upload_icon.png"))); // Dein Icon
+        uploadIcon.setImage(new Image(getClass().getResourceAsStream("/images/upload_icon.png")));
+        invoiceAmountField.textProperty().addListener((obs, oldVal, newVal) -> updateReimbursement());
+        categoryGroup.selectedToggleProperty().addListener((obs, oldVal, newVal) -> updateReimbursement());
     }
 
     @FXML
@@ -51,7 +41,6 @@ public class AddInvoiceController {
         );
 
         File file = fileChooser.showOpenDialog(chooseFileButton.getScene().getWindow());
-
         if (file != null) {
             selectedFile = file;
             fileLabel.setText(file.getName());
@@ -64,49 +53,55 @@ public class AddInvoiceController {
             showAlert(Alert.AlertType.WARNING, "Please select a file and a category.");
             return;
         }
-
         try {
-            double amount = Double.parseDouble(amountField.getText());
+            double invoiceAmount = Double.parseDouble(invoiceAmountField.getText());
             String category = restaurantRadio.isSelected() ? "restaurant" : "supermarket";
-
             int userId = Session.getCurrentUser().getId();
+            double reimbursementAmount = calculateReimbursement(invoiceAmount, category);
 
-            // 1. Datei zu Supabase Storage hochladen
             String fileUrl = SupabaseUploadService.uploadFile(selectedFile, userId);
-
             if (fileUrl != null) {
-                // 2. Eintrag in die Datenbank speichern
-                boolean success = SupabaseUploadService.saveInvoiceToDatabase(userId, fileUrl, category, amount);
-
+                boolean success = SupabaseUploadService.saveInvoiceToDatabase(
+                        userId, fileUrl, category, invoiceAmount, reimbursementAmount
+                );
                 if (success) {
                     showAlert(Alert.AlertType.INFORMATION, "Invoice uploaded and saved successfully.");
-                    closeWindow(); // Fenster schließen
+                    closeWindow();
                 } else {
                     showAlert(Alert.AlertType.ERROR, "Failed to save invoice to database.");
                 }
             } else {
                 showAlert(Alert.AlertType.ERROR, "Failed to upload file to Supabase.");
             }
-
         } catch (NumberFormatException e) {
             showAlert(Alert.AlertType.ERROR, "Invalid amount entered. Please enter a valid number.");
         }
     }
 
-    private void showSuccessDialog() {
-        Alert alert = new Alert(Alert.AlertType.INFORMATION);
-        alert.setTitle("Upload Successful");
-        alert.setHeaderText(null);
-        alert.setContentText("Your invoice was uploaded successfully!");
-        alert.showAndWait();
+    private void updateReimbursement() {
+        try {
+            double invoice = Double.parseDouble(invoiceAmountField.getText());
+            String category = restaurantRadio.isSelected() ? "restaurant" : supermarketRadio.isSelected() ? "supermarket" : "";
+            double reimbursement = calculateReimbursement(invoice, category);
+            reimbursementAmountLabel.setText(String.format("%.2f €", reimbursement));
+        } catch (Exception e) {
+            reimbursementAmountLabel.setText("-");
+        }
     }
 
+    private double calculateReimbursement(double amount, String category) {
+        return switch (category.toLowerCase()) {
+            case "restaurant" -> Math.min(amount, 3.0);
+            case "supermarket" -> Math.min(amount, 2.5);
+            default -> 0.0;
+        };
+    }
 
     private void closeWindow() {
-        Stage stage = (Stage) submitButton.getScene().getWindow();
+        // Use chooseFileButton to retrieve current stage instead of submitButton
+        Stage stage = (Stage) chooseFileButton.getScene().getWindow();
         stage.close();
     }
-
 
     private void showAlert(Alert.AlertType type, String message) {
         Alert alert = new Alert(type);
@@ -115,5 +110,4 @@ public class AddInvoiceController {
         alert.setContentText(message);
         alert.showAndWait();
     }
-
 }
