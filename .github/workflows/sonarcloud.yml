@@ -34,7 +34,10 @@ jobs:
 
       - name: SonarCloud Scan
         uses: SonarSource/sonarcloud-github-action@v2
+        env:
+          SONAR_TOKEN: ${{ secrets.SONAR_TOKEN }}
         with:
-          organization: Elvira0210
-          projectKey: Elvira0210_teaching-2025-ss-prse-brauer-team3
-          token: ${{ secrets.SONAR_TOKEN }}
+          args: >
+            -Dsonar.organization=Elvira0210
+            -Dsonar.projectKey=Elvira0210_teaching-2025-ss-prse-brauer-team3
+
