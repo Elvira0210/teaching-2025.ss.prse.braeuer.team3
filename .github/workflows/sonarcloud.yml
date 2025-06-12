@@ -38,6 +38,6 @@ jobs:
           SONAR_TOKEN: ${{ secrets.SONAR_TOKEN }}
         with:
           args: >
-            -Dsonar.organization=Elvira0210
+            -Dsonar.organization=elvira0210
             -Dsonar.projectKey=Elvira0210_teaching-2025-ss-prse-brauer-team3
 
