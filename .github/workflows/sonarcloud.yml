@@ -39,5 +39,5 @@ jobs:
         with:
           args: >
             -Dsonar.organization=elvira0210
-            -Dsonar.projectKey=Elvira0210_teaching-2025-ss-prse-brauer-team3
+            -Dsonar.projectKey=Elvira0210_teaching-2025.ss.prse.brauer.team3
 
